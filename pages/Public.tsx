@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { Search, MapPin, Clock, Star, Sparkles, Send, ArrowRight, Calendar, CheckCircle } from 'lucide-react';
+import { Search, MapPin, Clock, Star, Sparkles, Send, ArrowRight, Calendar, CheckCircle, CreditCard, Wallet } from 'lucide-react';
 import { getDestinations, getPackages, createBooking } from '../services/store';
 import { generateItinerary, askTravelAssistant } from '../services/gemini';
 import { Destination, TourPackage, User } from '../types';
@@ -325,6 +325,11 @@ export const PackageDetails: React.FC<{ user: User | null }> = ({ user }) => {
     const [bookingSuccess, setBookingSuccess] = useState(false);
     const [itinerary, setItinerary] = useState('');
     const [generatingItinerary, setGeneratingItinerary] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    // Booking Step State
+    const [bookingStep, setBookingStep] = useState<'details' | 'payment'>('details');
+    const [paymentMethod, setPaymentMethod] = useState<'card' | 'paypal'>('card');
     
     const navigate = useNavigate();
 
@@ -339,6 +344,11 @@ export const PackageDetails: React.FC<{ user: User | null }> = ({ user }) => {
         }
     }, [id]);
 
+    const handleNextStep = (e: React.FormEvent) => {
+        e.preventDefault();
+        setBookingStep('payment');
+    };
+
     const handleBook = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user) {
@@ -346,15 +356,46 @@ export const PackageDetails: React.FC<{ user: User | null }> = ({ user }) => {
             return;
         }
         if (pkg && travelDate) {
+            setIsSubmitting(true);
             try {
-                createBooking(user.id, pkg.id, travelDate, guests);
-                setBookingSuccess(true);
-                setTimeout(() => {
-                    setIsBookingModalOpen(false);
-                    navigate('/bookings');
-                }, 1500);
+                // Submit to Formspree
+                const response = await fetch("https://formspree.io/f/xwpgnjvk", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
+                    body: JSON.stringify({
+                        email: user.email,
+                        customer_name: user.name,
+                        tour_package: pkg.title,
+                        destination: dest?.name || 'Unknown',
+                        travel_date: travelDate,
+                        guests: guests,
+                        total_price: pkg.price * guests,
+                        payment_method: paymentMethod
+                    })
+                });
+
+                if (response.ok) {
+                    // Update local state
+                    createBooking(user.id, pkg.id, travelDate, guests);
+                    setBookingSuccess(true);
+                    setTimeout(() => {
+                        setIsBookingModalOpen(false);
+                        setBookingSuccess(false);
+                        setBookingStep('details');
+                        navigate('/bookings');
+                    }, 2000);
+                } else {
+                    const errorData = await response.json();
+                    alert("Submission failed: " + (errorData.error || "Please try again."));
+                }
             } catch (error) {
-                alert("Booking failed");
+                console.error("Booking failed", error);
+                alert("Booking failed. Please check your connection.");
+            } finally {
+                setIsSubmitting(false);
             }
         }
     };
@@ -437,7 +478,7 @@ export const PackageDetails: React.FC<{ user: User | null }> = ({ user }) => {
                             </div>
                         </div>
 
-                        <Button onClick={() => setIsBookingModalOpen(true)} className="w-full" size="lg">
+                        <Button onClick={() => { setIsBookingModalOpen(true); setBookingStep('details'); }} className="w-full" size="lg">
                             Book Now
                         </Button>
                         <p className="text-center text-xs text-slate-400 mt-4">No payment required today. Free cancellation.</p>
@@ -445,7 +486,7 @@ export const PackageDetails: React.FC<{ user: User | null }> = ({ user }) => {
                 </div>
             </div>
 
-            <Modal isOpen={isBookingModalOpen} onClose={() => setIsBookingModalOpen(false)} title={`Book ${pkg.title}`}>
+            <Modal isOpen={isBookingModalOpen} onClose={() => { setIsBookingModalOpen(false); setBookingStep('details'); }} title={bookingStep === 'details' ? `Book ${pkg.title}` : 'Select Payment Method'}>
                 {bookingSuccess ? (
                     <div className="text-center py-8">
                         <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
@@ -455,29 +496,93 @@ export const PackageDetails: React.FC<{ user: User | null }> = ({ user }) => {
                         <p className="text-slate-600 mt-2">Redirecting to your trips...</p>
                     </div>
                 ) : (
-                    <form onSubmit={handleBook} className="space-y-4">
-                        <Input 
-                            label="Travel Date" 
-                            type="date" 
-                            required 
-                            value={travelDate}
-                            onChange={(e) => setTravelDate(e.target.value)}
-                        />
-                        <Input 
-                            label="Number of Guests" 
-                            type="number" 
-                            min="1" 
-                            max="20"
-                            required
-                            value={guests}
-                            onChange={(e) => setGuests(parseInt(e.target.value))}
-                        />
-                        <div className="bg-slate-50 p-4 rounded-lg flex justify-between items-center font-medium">
-                            <span>Total Price:</span>
-                            <span className="text-xl text-brand-600">${pkg.price * guests}</span>
-                        </div>
-                        <Button type="submit" className="w-full">Confirm Booking</Button>
-                    </form>
+                    bookingStep === 'details' ? (
+                        <form onSubmit={handleNextStep} className="space-y-4">
+                            <Input 
+                                label="Travel Date" 
+                                type="date" 
+                                required 
+                                value={travelDate}
+                                onChange={(e) => setTravelDate(e.target.value)}
+                            />
+                            <Input 
+                                label="Number of Guests" 
+                                type="number" 
+                                min="1" 
+                                max="20"
+                                required
+                                value={guests}
+                                onChange={(e) => setGuests(parseInt(e.target.value))}
+                            />
+                            <div className="bg-slate-50 p-4 rounded-lg flex justify-between items-center font-medium">
+                                <span>Total Price:</span>
+                                <span className="text-xl text-brand-600">${pkg.price * guests}</span>
+                            </div>
+                            <Button type="submit" className="w-full">
+                                Continue to Payment
+                            </Button>
+                        </form>
+                    ) : (
+                         <form onSubmit={handleBook} className="space-y-6">
+                            {/* Order Summary */}
+                            <div className="bg-slate-50 p-4 rounded-lg space-y-2 text-sm text-slate-600 border border-slate-100">
+                                <div className="flex justify-between">
+                                    <span>Travel Date:</span>
+                                    <span className="font-medium text-slate-900">{travelDate}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span>Guests:</span>
+                                    <span className="font-medium text-slate-900">{guests} People</span>
+                                </div>
+                                <div className="flex justify-between text-base font-bold pt-2 border-t border-slate-200 mt-2">
+                                    <span>Total to Pay:</span>
+                                    <span className="text-brand-600">${pkg.price * guests}</span>
+                                </div>
+                            </div>
+
+                            {/* Payment Selection */}
+                            <div className="space-y-3">
+                                <label className="block text-sm font-medium text-slate-700">Choose Payment Method</label>
+                                
+                                <div 
+                                    onClick={() => setPaymentMethod('card')}
+                                    className={`cursor-pointer border rounded-lg p-4 flex items-center gap-4 transition-all ${paymentMethod === 'card' ? 'border-brand-500 ring-1 ring-brand-500 bg-brand-50' : 'border-slate-200 hover:border-brand-200'}`}
+                                >
+                                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${paymentMethod === 'card' ? 'border-brand-500' : 'border-slate-300'}`}>
+                                        {paymentMethod === 'card' && <div className="w-2.5 h-2.5 rounded-full bg-brand-500"/>}
+                                    </div>
+                                    <CreditCard className="text-slate-600" size={24}/>
+                                    <div>
+                                        <div className="font-medium text-slate-900">Credit / Debit Card</div>
+                                        <div className="text-xs text-slate-500">Secure payment via Stripe</div>
+                                    </div>
+                                </div>
+
+                                <div 
+                                    onClick={() => setPaymentMethod('paypal')}
+                                    className={`cursor-pointer border rounded-lg p-4 flex items-center gap-4 transition-all ${paymentMethod === 'paypal' ? 'border-brand-500 ring-1 ring-brand-500 bg-brand-50' : 'border-slate-200 hover:border-brand-200'}`}
+                                >
+                                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${paymentMethod === 'paypal' ? 'border-brand-500' : 'border-slate-300'}`}>
+                                        {paymentMethod === 'paypal' && <div className="w-2.5 h-2.5 rounded-full bg-brand-500"/>}
+                                    </div>
+                                    <Wallet className="text-slate-600" size={24}/>
+                                    <div>
+                                        <div className="font-medium text-slate-900">PayPal</div>
+                                        <div className="text-xs text-slate-500">Fast and secure checkout</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
+                                <Button type="button" variant="outline" onClick={() => setBookingStep('details')} className="flex-1">
+                                    Back
+                                </Button>
+                                <Button type="submit" className="flex-[2]" disabled={isSubmitting}>
+                                    {isSubmitting ? 'Processing...' : 'Confirm Booking'}
+                                </Button>
+                            </div>
+                        </form>
+                    )
                 )}
             </Modal>
         </div>

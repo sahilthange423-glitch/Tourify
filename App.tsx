@@ -8,7 +8,7 @@ import { getCurrentUser, logout as logoutService } from './services/store';
 import { User, UserRole } from './types';
 
 interface ProtectedRouteProps {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   roles?: UserRole[];
   user: User | null;
 }

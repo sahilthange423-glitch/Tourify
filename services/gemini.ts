@@ -1,13 +1,10 @@
 import { GoogleGenAI } from "@google/genai";
 
-// Safely access process.env to prevent "process is not defined" runtime errors
-const apiKey = (typeof process !== 'undefined' && process.env && process.env.API_KEY) || '';
-
-// Initialize safe AI client
-const ai = new GoogleGenAI({ apiKey });
+// Initialize AI client using process.env.API_KEY directly as per guidelines
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const generateItinerary = async (destinationName: string, days: number): Promise<string> => {
-  if (!apiKey) return "AI features are unavailable (Missing API Key).";
+  if (!process.env.API_KEY) return "AI features are unavailable (Missing API Key).";
   
   try {
     const prompt = `Create a detailed day-by-day travel itinerary for a ${days}-day trip to ${destinationName}. 
@@ -30,7 +27,7 @@ export const generateItinerary = async (destinationName: string, days: number): 
 };
 
 export const askTravelAssistant = async (query: string, context?: string): Promise<string> => {
-  if (!apiKey) return "AI features are unavailable (Missing API Key).";
+  if (!process.env.API_KEY) return "AI features are unavailable (Missing API Key).";
 
   try {
     const prompt = `You are an expert travel guide. 
