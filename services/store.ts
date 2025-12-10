@@ -112,8 +112,12 @@ export const login = async (email: string, role: UserRole = UserRole.USER): Prom
   // Simulate API delay
   await new Promise(r => setTimeout(r, 500));
   
+  // Use a stable ID based on email so bookings persist across sessions
+  // Remove non-alphanumeric chars for the ID
+  const stableId = email.toLowerCase().replace(/[^a-z0-9]/g, '');
+
   const user: User = {
-    id: email.split('@')[0] + '-' + Date.now(),
+    id: `u-${stableId}`,
     name: email.split('@')[0],
     email,
     role,
