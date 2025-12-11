@@ -1,10 +1,24 @@
 import { GoogleGenAI } from "@google/genai";
 
-// Initialize AI client using process.env.API_KEY directly as per guidelines
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Safe access to environment variable for browser environments (Netlify)
+const getApiKey = (): string | undefined => {
+  try {
+    // Check if process is defined (Node.js or polyfilled by bundler)
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env.API_KEY;
+    }
+  } catch (e) {
+    // Ignore reference errors if process is not defined
+  }
+  return undefined;
+};
+
+const apiKey = getApiKey();
+// Initialize client only if key is available to prevent immediate crashes
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export const generateItinerary = async (destinationName: string, days: number): Promise<string> => {
-  if (!process.env.API_KEY) return "AI features are unavailable (Missing API Key).";
+  if (!ai) return "AI features are unavailable. Please check your API_KEY configuration.";
   
   try {
     const prompt = `Create a detailed day-by-day travel itinerary for a ${days}-day trip to ${destinationName}. 
@@ -27,7 +41,7 @@ export const generateItinerary = async (destinationName: string, days: number): 
 };
 
 export const askTravelAssistant = async (query: string, context?: string): Promise<string> => {
-  if (!process.env.API_KEY) return "AI features are unavailable (Missing API Key).";
+  if (!ai) return "AI features are unavailable. Please check your API_KEY configuration.";
 
   try {
     const prompt = `You are an expert travel guide. 

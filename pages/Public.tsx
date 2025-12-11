@@ -266,8 +266,10 @@ export const DestinationDetails = () => {
     const { id } = useParams<{ id: string }>();
     const [destination, setDestination] = useState<Destination | null>(null);
     const [packages, setPackages] = useState<TourPackage[]>([]);
+    const [loading, setLoading] = useState(true);
     
     useEffect(() => {
+        setLoading(true);
         const allDests = getDestinations();
         const d = allDests.find(dest => dest.id === id);
         setDestination(d || null);
@@ -276,9 +278,11 @@ export const DestinationDetails = () => {
             const allPkgs = getPackages();
             setPackages(allPkgs.filter(p => p.destinationId === d.id));
         }
+        setLoading(false);
     }, [id]);
 
-    if (!destination) return <div className="text-center py-20">Destination not found.</div>;
+    if (loading) return <div className="text-center py-20"><LoadingSpinner /></div>;
+    if (!destination) return <div className="text-center py-20 text-slate-500">Destination not found.</div>;
 
     return (
         <div className="bg-slate-50 min-h-screen pb-20">
@@ -379,6 +383,8 @@ export const PackageDetails: React.FC<{ user: User | null }> = ({ user }) => {
     const { id } = useParams<{ id: string }>();
     const [pkg, setPkg] = useState<TourPackage | null>(null);
     const [dest, setDest] = useState<Destination | null>(null);
+    const [loading, setLoading] = useState(true);
+
     const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
     const [guests, setGuests] = useState(1);
     const [travelDate, setTravelDate] = useState('');
@@ -394,6 +400,7 @@ export const PackageDetails: React.FC<{ user: User | null }> = ({ user }) => {
     const navigate = useNavigate();
 
     useEffect(() => {
+        setLoading(true);
         const allPkgs = getPackages();
         const p = allPkgs.find(p => p.id === id);
         if (p) {
@@ -402,6 +409,7 @@ export const PackageDetails: React.FC<{ user: User | null }> = ({ user }) => {
             const d = allDests.find(d => d.id === p.destinationId);
             setDest(d || null);
         }
+        setLoading(false);
     }, [id]);
 
     const handleNextStep = (e: React.FormEvent) => {
@@ -468,7 +476,8 @@ export const PackageDetails: React.FC<{ user: User | null }> = ({ user }) => {
         setGeneratingItinerary(false);
     };
 
-    if (!pkg || !dest) return <div className="text-center py-20"><LoadingSpinner /></div>;
+    if (loading) return <div className="text-center py-20"><LoadingSpinner /></div>;
+    if (!pkg || !dest) return <div className="text-center py-20 text-slate-500">Package not found.</div>;
 
     return (
         <div className="bg-slate-50 min-h-screen py-12">
